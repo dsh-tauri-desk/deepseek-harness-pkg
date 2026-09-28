@@ -1,6 +1,6 @@
 {
   "name": "deepseek-harness-pkg",
-  "version": "0.1.7-rc.2",
+  "version": "0.2.0-rc.1",
   "description": "Packaged DeepSeek Harness (dsh) with a build-time LAN-access patch, built for cross-platform distribution.",
   "private": true,
   "packageManager": "pnpm@11.7.0",
@@ -12,7 +12,7 @@
     "build": "pnpm deploy --filter . --prod build_dir --legacy"
   },
   "dependencies": {
-    "@deepseek-ai/dsh": "0.1.7-rc.2",
+    "@deepseek-ai/dsh": "0.2.0-rc.1",
     "koffi": "^3.1.4"
   }
 }
