@@ -68,7 +68,9 @@ The web UI opens at `http://127.0.0.1:3080`. On first use, configure a model pro
 │   └── sync-source-release.yml     # scheduled GitHub Release check for source builds
 ├── scripts/
 │   ├── apply-dsh-web-app-patch.mjs               # idempotent LAN-switch patch (fails loudly if the upstream guard changes)
+│   ├── apply-pi-ai-codex-error-patch.mjs         # sanitizes upstream HTML Codex errors
 │   ├── check-artifact-size.mjs                   # reports release asset sizes (never blocks)
+│   ├── check-dsh-installable.mjs                 # resolves the whole dependency closure before fanning out builds
 │   ├── check-workflows.mjs                       # local self-check of .github/workflows/*.yml
 │   ├── selftest-check-workflows.mjs              # reverse tests for check-workflows.mjs
 │   ├── delete-stale-drafts.mjs                   # clears leftover draft releases so re-runs are idempotent
@@ -125,9 +127,13 @@ DSH_PKG_ALLOW_LAN=1 dsh web --host 0.0.0.0 --trusted-host <LAN-IP>:3080
 
 > ⚠️ Security warning: `--host 0.0.0.0` lets any device on your LAN access your sessions and tool execution. Use it only in trusted networks and pair it with `--trusted-host` to restrict the `/api` trust domain.
 
-### How the LAN switch is applied
+### pi-ai: bounded Codex edge errors
 
-`scripts/apply-dsh-web-app-patch.mjs` is applied idempotently during packaging (see the "Apply dsh-web-app patch" step in `release.yml` / `release-from-source.yml`): it only needs the upstream guard line to exist, and fails loudly with a message to update the script if upstream changes it. There is no pnpm `patchedDependencies` entry anymore — the previous `patches/dsh-web-app@0.1.0-rc.6.patch` was removed when it went stale.
+OpenAI or Cloudflare may return an HTML block page from the Codex endpoint. Upstream pi-ai otherwise forwards that complete page—including markup and the client IP—as the model error. `scripts/apply-pi-ai-codex-error-patch.mjs` preserves normal JSON/text provider errors, but replaces HTML responses with a bounded diagnostic containing the HTTP status and a sanitized Ray ID when available.
+
+### How the patches are applied
+
+`scripts/apply-dsh-web-app-patch.mjs` is applied idempotently during packaging (see the "Apply runtime patches" step in `release.yml` / `release-from-source.yml`): it only needs the upstream guard line to exist, and fails loudly with a message to update the script if upstream changes it. There is no pnpm `patchedDependencies` entry anymore — the previous `patches/dsh-web-app@0.1.0-rc.6.patch` was removed when it went stale.
 
 ## Auto-sync Upstream Releases
 
@@ -137,6 +143,7 @@ The repository has two complementary scheduled workflows:
 - **GitHub-only path — `sync-source-release.yml`**: checks every 6 hours whether the semver-highest upstream GitHub Release is newer than npm `@deepseek-ai/dsh`. If npm has not published that version yet, it calls `release-from-source.yml`, which clones the exact `dsh-v<version>` tag, runs `pnpm install` and `pnpm run build`, deploys the built workspace closure, and publishes four platform archives as a GitHub **pre-release**. These source pre-releases do not update `main`, because the version is not installable from npm yet.
 - **Idempotency**: source releases use `dsh-src-<version>-<run_id>` tags. The source watcher skips a version already released this way, while the npm watcher ignores pre-releases so the two paths do not trigger each other repeatedly.
 - **Publication propagation**: a freshly published version can show up in the npm packument before its tarball is downloadable, which makes `pnpm add` fail with `ERR_PNPM_FETCH_404`. `release.yml` therefore runs a `preflight` job first — `scripts/wait-for-npm-version.mjs` polls the tarball URL (up to 10 minutes) and only then fans out to the four platform builds.
+- **Partial publishes**: upstream publishes ~150 `@deepseek-ai/dsh-*` sub-packages per release. The root package's packument and tarball can be live while sub-packages are still missing, which fails with `ERR_PNPM_NO_MATCHING_VERSION` (run `36424634893`: `dsh-client-ui-settings-account@0.2.0-rc.1` landed ~2 minutes after the sync picked the version). So `preflight` also runs `scripts/check-dsh-installable.mjs`, which installs the version in a scratch directory (`pnpm install --ignore-scripts`) with bounded retries before the matrix starts.
 - **Patch tolerance**: `scripts/apply-dsh-web-app-patch.mjs` idempotently re-applies the LAN switch to the shipped `dsh-web-app`; if upstream changes the relevant guard, it fails loudly with a message to update the script.
 
 For a manual source build, trigger **Build and Pre-release DeepSeek Harness from Source** and provide the upstream release version, without the `dsh-v` prefix (for example `0.1.2-alpha.1`).

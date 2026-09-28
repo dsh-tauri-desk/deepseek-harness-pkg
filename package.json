@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "dsh web",
-    "build": "pnpm deploy --filter . --prod build_dir --legacy"
+    "build": "pnpm deploy --filter . --prod build_dir --legacy && node scripts/apply-dsh-web-app-patch.mjs --file=build_dir/node_modules/@deepseek-ai/dsh-web-app/lib/startup.js && node scripts/apply-pi-ai-codex-error-patch.mjs --file=build_dir/node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js",
+    "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.0-rc.1",

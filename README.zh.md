@@ -68,7 +68,9 @@ Web UI 会打开在 `http://127.0.0.1:3080`。首次使用需要在界面里配�
 │   └── sync-source-release.yml     # 定时检测 GitHub Release 并触发源码构建
 ├── scripts/
 │   ├── apply-dsh-web-app-patch.mjs               # 幂等应用 LAN 开关补丁（上游 guard 变更时明确失败）
+│   ├── apply-pi-ai-codex-error-patch.mjs         # 脱敏 Codex 上游 HTML 错误
 │   ├── check-artifact-size.mjs                   # 报告发布产物体积（只报告、不拦截）
+│   ├── check-dsh-installable.mjs                 # fan-out 前先解析完整依赖链，确认这一版发全了
 │   ├── check-workflows.mjs                       # 本地自检 .github/workflows/*.yml
 │   ├── selftest-check-workflows.mjs              # check-workflows.mjs 的反向测试（仅本地自检）
 │   ├── delete-stale-drafts.mjs                   # 清理同版本残留的 draft release，保证重跑幂等
@@ -125,9 +127,13 @@ DSH_PKG_ALLOW_LAN=1 dsh web --host 0.0.0.0 --trusted-host <局域网IP>:3080
 
 > ⚠️ 安全警告：`--host 0.0.0.0` 会允许局域网任意设备访问你的会话与工具执行能力。仅建议在受信网络/内网环境使用，并配合 `--trusted-host` 限制 `/api` 信任域。
 
-### LAN 开关如何生效
+### pi-ai：限制并脱敏 Codex 边缘错误
 
-`scripts/apply-dsh-web-app-patch.mjs` 在打包时幂等应用（见 `release.yml` / `release-from-source.yml` 中的 "Apply dsh-web-app patch" 步骤）：它只需上游 guard 行存在即可，若上游修改了该 guard 会明确失败并提示更新脚本。仓库不再使用 pnpm `patchedDependencies` —— 之前的 `patches/dsh-web-app@0.1.0-rc.6.patch` 已随版本升级过期而被移除。
+OpenAI 或 Cloudflare 可能从 Codex 接口返回 HTML 拦截页。上游 pi-ai 会将整页内容（包括 HTML 与客户端 IP）直接作为模型错误向上传递。`scripts/apply-pi-ai-codex-error-patch.mjs` 保留正常 JSON/文本提供方错误，仅将 HTML 响应替换为包含 HTTP 状态以及可选脱敏 Ray ID 的有限诊断信息。
+
+### 补丁如何生效
+
+`scripts/apply-dsh-web-app-patch.mjs` 在打包时幂等应用（见 `release.yml` / `release-from-source.yml` 中的 "Apply runtime patches" 步骤）：它只需上游 guard 行存在即可，若上游修改了该 guard 会明确失败并提示更新脚本。仓库不再使用 pnpm `patchedDependencies` —— 之前的 `patches/dsh-web-app@0.1.0-rc.6.patch` 已随版本升级过期而被移除。
 
 ## 自动同步上游 Release
 
@@ -137,6 +143,7 @@ DSH_PKG_ALLOW_LAN=1 dsh web --host 0.0.0.0 --trusted-host <局域网IP>:3080
 - **GitHub-only 路径 — `sync-source-release.yml`**：每 6 小时检查上游 GitHub Release 中 semver 最高的版本是否高于 npm `@deepseek-ai/dsh`。如果 GitHub 已发布而 npm 尚未发布，就调用 `release-from-source.yml`：克隆准确的 `dsh-v<version>` tag，执行 `pnpm install` 和 `pnpm run build`，部署构建后的 workspace 闭包，并将四个平台压缩包发布为 GitHub **pre-release**。由于该版本还不能从 npm 安装，源码 pre-release 不会更新 `main`。
 - **幂等性**：源码发布使用 `dsh-src-<version>-<run_id>` tag；源码工作流会跳过已经发布过的版本，npm 工作流会忽略 pre-release，因此两条路径不会反复互相触发。
 - **发布传播**：刚发布的版本可能先进 packument（版本列表），tarball 稍后才可下载，这个窗口里 `pnpm add` 会拿到 `ERR_PNPM_FETCH_404`。因此 `release.yml` 先跑 `preflight` job：`scripts/wait-for-npm-version.mjs` 轮询 tarball（最多 10 分钟），确认可下载后才 fan-out 到四个平台构建。
+- **半发布**：上游每次发版要推 ~150 个 `@deepseek-ai/dsh-*` 子包。根包的 packument 与 tarball 可以先生效、子包还没到位，此时 `pnpm add` 报 `ERR_PNPM_NO_MATCHING_VERSION`（run `36424634893`：`dsh-client-ui-settings-account@0.2.0-rc.1` 比 sync 选中版本晚了约 2 分钟才进 registry）。所以 `preflight` 还会跑 `scripts/check-dsh-installable.mjs`：在临时目录里真的装一遍（`pnpm install --ignore-scripts`），带界重试，通过后才启动构建矩阵。
 - **补丁容错**：`scripts/apply-dsh-web-app-patch.mjs` 会幂等地给产物中的 `dsh-web-app` 重新应用 LAN 开关补丁；如果上游修改了相关 guard，则明确失败并提示更新脚本。
 
 手动进行源码构建时，在 Actions 中触发 **Build and Pre-release DeepSeek Harness from Source**，填写不带 `dsh-v` 前缀的上游版本，例如 `0.1.2-alpha.1`。

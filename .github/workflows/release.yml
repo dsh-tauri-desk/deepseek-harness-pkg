@@ -24,9 +24,11 @@ jobs:
   # 所以在 fan-out 之前先确认 tarball 真能下：拿不到就有界轮询（默认 10 分钟），
   # 失败也只是一个 job 失败，不占 4 个 runner，且下一个定时 sync 会自然重试。
   preflight:
-    name: Verify dsh tarball is downloadable
+    name: Verify dsh version is installable
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 预算覆盖两个探测：tarball 最多等 10 分钟（600s），依赖链最多等 8 分钟（480s），
+    # 外加真安装本身的时间（冷 store 约 2-3 分钟）；健康时两者都秒过。
+    timeout-minutes: 25
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,6 +38,10 @@ jobs:
         with:
           node-version: 22.22.0
 
+      - name: Install pnpm
+        # 依赖链探测要跑 `pnpm install --lockfile-only`，所以 preflight 也需要 pnpm。
+        uses: pnpm/action-setup@v4
+
       - name: Wait for the npm tarball
         shell: bash
         run: |
@@ -44,6 +50,18 @@ jobs:
             --package=@deepseek-ai/dsh \
             --version="${{ inputs.dsh_version || github.event.inputs.dsh_version }}" \
             --timeout-seconds=600
+
+      - name: Wait until the whole dependency closure resolves
+        # tarball 可下载 != 这一版发全了：上游发布顺序是根包先可见、~150 个子包随后
+        # 陆续上架，中间窗口里 lockfile 解析会 ERR_PNPM_NO_MATCHING_VERSION
+        # （run 36424634893）。这里在 fan-out 前把完整依赖链试解析一遍。
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-dsh-installable.mjs \
+            --package=@deepseek-ai/dsh \
+            --version="${{ inputs.dsh_version || github.event.inputs.dsh_version }}" \
+            --timeout-seconds=480
 
   build:
     name: Build on ${{ matrix.os }}
@@ -100,17 +118,19 @@ jobs:
         # 瘦身规则（例如交叉平台的 node-pty / sharp 原生二进制被打进了每个平台包）。
         run: node scripts/prune-node-modules.mjs --report-only --dir=build_dir/node_modules --list-dir=test --list-dir=__tests__
 
-      - name: Apply dsh-web-app patch
+      - name: Apply runtime patches
         shell: bash
         working-directory: build_dir
         run: |
           node ../scripts/apply-dsh-web-app-patch.mjs
+          node ../scripts/apply-pi-ai-codex-error-patch.mjs
 
-      - name: Verify patch applied
+      - name: Verify patches applied
         shell: bash
         working-directory: build_dir
         run: |
-          grep -q 'DSH_PKG_ALLOW_LAN' node_modules/@deepseek-ai/dsh-web-app/lib/startup.js && echo "patch OK" || (echo "patch missing" && exit 1)
+          grep -q 'DSH_PKG_ALLOW_LAN' node_modules/@deepseek-ai/dsh-web-app/lib/startup.js && echo "LAN patch OK" || (echo "LAN patch missing" && exit 1)
+          grep -q 'PI_AI_CODEX_HTML_ERROR_SANITIZED' node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js && echo "Codex error patch OK" || (echo "Codex error patch missing" && exit 1)
 
       - name: Prune node_modules
         shell: bash
