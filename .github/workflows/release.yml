@@ -39,7 +39,7 @@ jobs:
           node-version: 22.22.0
 
       - name: Install pnpm
-        # 依赖链探测要跑 `pnpm install --lockfile-only`，所以 preflight 也需要 pnpm。
+        # 依赖链探测要真跑一次 `pnpm install`（在临时目录），所以 preflight 也需要 pnpm。
         uses: pnpm/action-setup@v4
 
       - name: Wait for the npm tarball
