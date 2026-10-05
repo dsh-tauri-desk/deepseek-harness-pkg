@@ -54,7 +54,7 @@ macOS / Linux：
 
 ## 本地构建
 
-维护者需要 Node.js `>=22.19.0` 与 pnpm `11.7.0`，版本声明见 [package.json](<package.json>)。当前固定的 `@deepseek-ai/dsh` 版本为 `0.2.0-rc.2`。
+维护者需要 Node.js `>=22.19.0` 与 pnpm `11.7.0`，版本声明见 [package.json](<package.json>)。当前固定的 `@deepseek-ai/dsh` 版本为 `0.2.1-alpha.1`；桌面应用另按兼容规则选择内核。
 
 ```sh
 pnpm install

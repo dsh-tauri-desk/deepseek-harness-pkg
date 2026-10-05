@@ -54,7 +54,7 @@ The default address is `http://127.0.0.1:3080`; follow the CLI's authenticated a
 
 ## Local build
 
-For maintainers: Node.js `>=22.19.0` and pnpm `11.7.0`, as declared in [package.json](<package.json>). The current `@deepseek-ai/dsh` pin is `0.2.0-rc.2`.
+For maintainers: Node.js `>=22.19.0` and pnpm `11.7.0`, as declared in [package.json](<package.json>). The current `@deepseek-ai/dsh` pin is `0.2.1-alpha.1`; the desktop app selects its own compatible core version.
 
 ```sh
 pnpm install
