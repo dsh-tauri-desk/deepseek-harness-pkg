@@ -142,12 +142,11 @@ jobs:
           DSH_VERSION: ${{ inputs.dsh_version || github.event.inputs.dsh_version }}
         run: |
           set -euo pipefail
-          mkdir -p node_modules/.bin patches
+          mkdir -p node_modules/.bin
           # pnpm may create .bin entries as links to the package target;
           # remove them before writing standalone shims, otherwise writing the
           # shim would overwrite @deepseek-ai/dsh/lib/bin.js itself.
           rm -f node_modules/.bin/dsh node_modules/.bin/dsh.cmd node_modules/.bin/dsh.ps1
-          cp ../../patches/* patches/ 2>/dev/null || true
           cat > package.json <<EOF
           {
             "name": "deepseek-harness-pkg",
@@ -188,17 +187,11 @@ jobs:
         # 二进制被打进了每个平台包）。
         run: node ../../scripts/prune-node-modules.mjs --report-only --dir=node_modules --list-dir=test --list-dir=__tests__
 
-      - name: Apply dsh-web-app patch
-        shell: bash
-        working-directory: upstream/build_dir
-        run: node ../../scripts/apply-dsh-web-app-patch.mjs
-
       - name: Verify runtime closure and source-built CLI
         shell: bash
         working-directory: upstream/build_dir
         run: |
           set -euo pipefail
-          grep -q 'DSH_PKG_ALLOW_LAN' node_modules/@deepseek-ai/dsh-web-app/lib/startup.js
           test -f node_modules/@deepseek-ai/dsh/lib/bin.js
           test -f node_modules/.bin/dsh
           # Required peers are not necessarily pulled by a CLI-only deploy.
@@ -226,9 +219,9 @@ jobs:
         working-directory: upstream/build_dir
         run: |
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
-            7z a ../../${{ matrix.artifact_name }} node_modules package.json patches
+            7z a ../../${{ matrix.artifact_name }} node_modules package.json
           else
-            zip -r ../../${{ matrix.artifact_name }} node_modules package.json patches
+            zip -r ../../${{ matrix.artifact_name }} node_modules package.json
           fi
 
       - name: Upload artifact

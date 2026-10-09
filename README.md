@@ -7,7 +7,7 @@
 <h1 align="center">DeepSeek Harness Pkg</h1>
 
 <p align="center">
-  <em>Cross-platform production dependency bundles for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (<code>dsh</code>) — pinned, patched, and auto-synced by GitHub Actions.</em>
+  <em>Cross-platform production dependency bundles for <a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a> (<code>dsh</code>) — pinned and auto-synced by GitHub Actions.</em>
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ pnpm start              # Run dsh web using repository dependencies
 pnpm build              # Deploy production dependencies to build_dir/
 ```
 
-`pnpm build` deploys to `build_dir/` and applies both runtime patches below; `pnpm start` does not run that deployed output. See the [workspace/build policy](<pnpm-workspace.yaml>) for dependency layout and install-script settings.
+`pnpm build` deploys upstream production dependencies to `build_dir/` without rewriting runtime code; `pnpm start` does not run that deployed output. See the [workspace/build policy](<pnpm-workspace.yaml>) for dependency layout and install-script settings.
 
 ## Releases and synchronization
 
@@ -79,32 +79,13 @@ npm preflight [waits for the actual tarball](<scripts/wait-for-npm-version.mjs>)
 
 Both release paths [prune the output](<scripts/prune-node-modules.mjs>) and verify four uploaded ZIP assets. [Size reports](<scripts/check-artifact-size.mjs>) are informational, not release gates.
 
-## Runtime patches
+## Runtime compatibility
 
-| Build path | [LAN switch](<scripts/apply-dsh-web-app-patch.mjs>) | [Codex HTML diagnostics](<scripts/apply-pi-ai-codex-error-patch.mjs>) |
-| --- | --- | --- |
-| Local `pnpm build` | Applied | Applied |
-| npm release | Applied and verified | Applied and verified |
-| Source pre-release | Applied and verified | Not applied by this workflow |
+Local builds and both release paths preserve upstream runtime code. The former LAN override and Codex HTML-error patches have been removed so optional customizations do not block packaging when upstream code changes. Host safety checks and provider error formatting now follow the bundled upstream versions. Codex errors may therefore include raw HTML edge-response bodies; treat error logs as potentially sensitive.
 
-The build-time LAN patch keeps `--host 0.0.0.0` blocked unless `DSH_PKG_ALLOW_LAN=1` is set. It does **not** replace upstream authentication or permissions.
-
-LAN opt-in (Windows/PowerShell; replace `192.168.1.10` with this machine's LAN IP):
-
-```powershell
-$env:DSH_PKG_ALLOW_LAN = "1"
-.\node_modules\.bin\dsh.cmd web --host 0.0.0.0 --trusted-host 192.168.1.10:3080
-```
-
-macOS / Linux (use the same LAN-IP substitution):
-
-```sh
-DSH_PKG_ALLOW_LAN=1 ./node_modules/.bin/dsh web --host 0.0.0.0 --trusted-host 192.168.1.10:3080
-```
+For LAN access, consult the bundled CLI's help for its version-specific flags. Recent upstream releases require one concrete local IPv4 or IPv6 address rather than a wildcard such as `0.0.0.0`; the former LAN opt-in environment variable no longer overrides that policy.
 
 `--trusted-host` limits host trust, not authentication. Keep upstream access credentials private and enable LAN access only on trusted networks.
-
-The Codex patch replaces HTML edge/block pages with bounded diagnostics containing the HTTP status and an optional sanitized Ray ID. Normal JSON/text provider errors are preserved; source pre-releases do not promise this patch.
 
 ## Security and use
 

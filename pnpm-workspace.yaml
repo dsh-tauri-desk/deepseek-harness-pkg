@@ -13,6 +13,3 @@ dangerouslyAllowAllBuilds: true
 
 # pnpm 11 默认的发布年龄门禁会拒绝“太新”的依赖，关闭它保证上游发布后立即可同步。
 minimumReleaseAge: 0
-
-# dsh-web-app 的 LAN 开关补丁不再使用 pnpm patchedDependencies（旧补丁已随版本升级过期），
-# 改为在打包时由 scripts/apply-dsh-web-app-patch.mjs 幂等应用。

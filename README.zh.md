@@ -7,7 +7,7 @@
 <h1 align="center">DeepSeek Harness Pkg</h1>
 
 <p align="center">
-  <em><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>（<code>dsh</code>）的跨平台生产依赖包 —— 固定版本、应用补丁，由 GitHub Actions 自动同步构建。</em>
+  <em><a href="https://github.com/deepseek-ai/deepseek-harness">DeepSeek Harness</a>（<code>dsh</code>）的跨平台生产依赖包 —— 固定版本，由 GitHub Actions 自动同步构建。</em>
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ pnpm start              # 使用仓库依赖运行 dsh web
 pnpm build              # 将生产依赖部署到 build_dir/
 ```
 
-`pnpm build` 部署到 `build_dir/` 后会应用下表中的两个运行时补丁；`pnpm start` 并不运行这份部署产物。依赖布局与安装脚本设置见[工作区/构建策略](<pnpm-workspace.yaml>)。
+`pnpm build` 将上游生产依赖部署到 `build_dir/`，不改写运行时代码；`pnpm start` 并不运行这份部署产物。依赖布局与安装脚本设置见[工作区/构建策略](<pnpm-workspace.yaml>)。
 
 ## 发布与同步
 
@@ -79,32 +79,13 @@ npm 预检先[等待真实 tarball 可下载](<scripts/wait-for-npm-version.mjs>
 
 两条发布路径均会[裁剪产物](<scripts/prune-node-modules.mjs>)并确认四个 ZIP 资产已上传。[体积报告](<scripts/check-artifact-size.mjs>)仅供参考，不作为发布门槛。
 
-## 运行时补丁
+## 运行时兼容性
 
-| 构建路径 | [LAN 开关](<scripts/apply-dsh-web-app-patch.mjs>) | [Codex HTML 诊断](<scripts/apply-pi-ai-codex-error-patch.mjs>) |
-| --- | --- | --- |
-| 本地 `pnpm build` | 应用 | 应用 |
-| npm 发布 | 应用并验证 | 应用并验证 |
-| 源码预发布 | 应用并验证 | 此工作流不应用 |
+本地构建与两条发布路径均保留上游运行时代码。原有 LAN 放行和 Codex HTML 错误展示补丁已移除，避免可选定制因上游代码变化而阻塞打包。主机安全校验和提供方错误展示遵循打包所用的上游版本。Codex 错误因此可能包含原始 HTML 边缘响应正文，请将错误日志视为可能包含敏感信息。
 
-构建期 LAN 补丁保留 `--host 0.0.0.0` 的默认拦截，仅设置 `DSH_PKG_ALLOW_LAN=1` 才放行。它**不替代**上游认证或权限机制。
-
-主动启用 LAN（Windows/PowerShell；将 `192.168.1.10` 换成本机局域网 IP）：
-
-```powershell
-$env:DSH_PKG_ALLOW_LAN = "1"
-.\node_modules\.bin\dsh.cmd web --host 0.0.0.0 --trusted-host 192.168.1.10:3080
-```
-
-macOS / Linux（同样替换局域网 IP）：
-
-```sh
-DSH_PKG_ALLOW_LAN=1 ./node_modules/.bin/dsh web --host 0.0.0.0 --trusted-host 192.168.1.10:3080
-```
+需要 LAN 访问时，请查阅所打包 CLI 的帮助，按对应版本的参数配置。较新的上游版本要求绑定一个具体的本机 IPv4 或 IPv6 地址，而不是 `0.0.0.0` 等通配地址；原 LAN 放行环境变量不再覆盖这一策略。
 
 `--trusted-host` 限制主机信任范围，不是认证机制。请妥善保管上游访问凭据，仅在可信网络启用 LAN。
-
-Codex 补丁将 HTML 边缘/拦截页面替换为包含 HTTP 状态及可选脱敏 Ray ID 的有限诊断。正常 JSON/文本提供方错误保持不变；源码预发布不承诺此补丁。
 
 ## 安全与使用
 
