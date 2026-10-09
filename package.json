@@ -1,7 +1,7 @@
 {
   "name": "deepseek-harness-pkg",
   "version": "0.2.1-alpha.1",
-  "description": "Packaged DeepSeek Harness (dsh) with a build-time LAN-access patch, built for cross-platform distribution.",
+  "description": "Packaged upstream DeepSeek Harness (dsh) runtime dependencies for cross-platform distribution.",
   "private": true,
   "packageManager": "pnpm@11.7.0",
   "engines": {
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "dsh web",
-    "build": "pnpm deploy --filter . --prod build_dir --legacy && node scripts/apply-dsh-web-app-patch.mjs --file=build_dir/node_modules/@deepseek-ai/dsh-web-app/lib/startup.js && node scripts/apply-pi-ai-codex-error-patch.mjs --file=build_dir/node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js",
+    "build": "pnpm deploy --filter . --prod build_dir --legacy",
     "test": "node --test scripts/*.test.mjs"
   },
   "dependencies": {

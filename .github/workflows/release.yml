@@ -118,20 +118,6 @@ jobs:
         # 瘦身规则（例如交叉平台的 node-pty / sharp 原生二进制被打进了每个平台包）。
         run: node scripts/prune-node-modules.mjs --report-only --dir=build_dir/node_modules --list-dir=test --list-dir=__tests__
 
-      - name: Apply runtime patches
-        shell: bash
-        working-directory: build_dir
-        run: |
-          node ../scripts/apply-dsh-web-app-patch.mjs
-          node ../scripts/apply-pi-ai-codex-error-patch.mjs
-
-      - name: Verify patches applied
-        shell: bash
-        working-directory: build_dir
-        run: |
-          grep -q 'DSH_PKG_ALLOW_LAN' node_modules/@deepseek-ai/dsh-web-app/lib/startup.js && echo "LAN patch OK" || (echo "LAN patch missing" && exit 1)
-          grep -q 'PI_AI_CODEX_HTML_ERROR_SANITIZED' node_modules/@earendil-works/pi-ai/dist/api/openai-codex-responses.js && echo "Codex error patch OK" || (echo "Codex error patch missing" && exit 1)
-
       - name: Prune node_modules
         shell: bash
         working-directory: build_dir
@@ -143,10 +129,8 @@ jobs:
         working-directory: build_dir
         run: |
           # 根据不同平台使用对应的压缩命令
-          # 注意：patches 目录已随 799ce3ba 移除（dsh-web-app 补丁改为
-          # scripts/apply-dsh-web-app-patch.mjs 直接打进 node_modules），
-          # 不能再列入打包清单——7z 对缺失路径返回非零退出码会导致 Windows
-          # 打包失败（zip 仅告警，这也是此前只有 Windows 失败的原因）。
+          # 只打包真实部署内容；不要加入已移除的 patches 目录。
+          # 7z 对缺失路径返回非零退出码，会导致 Windows 打包失败。
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             7z a ../${{ matrix.artifact_name }} node_modules package.json package-lock.json
           else
